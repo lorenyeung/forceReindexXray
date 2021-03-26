@@ -1,16 +1,12 @@
 package helpers
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"forceReindexXray/auth"
-	"io"
-	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -72,80 +68,24 @@ func Trace() TraceData {
 	return trace
 }
 
-//PrintDownloadPercent self explanatory
-func PrintDownloadPercent(done chan int64, path string, total int64) {
-	var stop = false
-	if total == -1 {
-		log.Warn("-1 Content length, can't load download bar, will download silently")
-		return
-	}
-	for {
-		select {
-		case <-done:
-			stop = true
-		default:
-			file, err := os.Open(path)
-			Check(err, true, "Opening file path", Trace())
-			fi, err := file.Stat()
-			Check(err, true, "Getting file statistics", Trace())
-			size := fi.Size()
-			if size == 0 {
-				size = 1
-			}
-			var percent = float64(size) / float64(total) * 100
-			if percent != 100 {
-				fmt.Printf("\r%.0f%% %s", percent, path)
-			}
-		}
-		if stop {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-}
-
 //Flags struct
 type Flags struct {
-	WorkersVar                                                                       int
 	UsernameVar, ApikeyVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, ListReposVar string
 	ReindexAllVar                                                                    bool
-}
-
-//LineCounter counts  how many lines are in a file
-func LineCounter(r io.Reader) (int, error) {
-	buf := make([]byte, 32*1024)
-	count := 0
-	lineSep := []byte{'\n'}
-
-	for {
-		c, err := r.Read(buf)
-		count += bytes.Count(buf[:c], lineSep)
-
-		switch {
-		case err == io.EOF:
-			return count, nil
-
-		case err != nil:
-			return count, err
-		}
-	}
 }
 
 //SetFlags function
 func SetFlags() Flags {
 	var flags Flags
-	flag.StringVar(&flags.ListReposVar, "list", "", "List of repos to re-index, comma separated")
 	flag.StringVar(&flags.LogLevelVar, "log", "INFO", "Order of Severity: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC")
-	flag.IntVar(&flags.WorkersVar, "workers", 50, "Number of workers")
+	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location, get this from Artifactory")
 
+	flag.StringVar(&flags.URLVar, "url", "", "Platform URL. No /context")
 	flag.StringVar(&flags.UsernameVar, "user", "", "Username")
 	flag.StringVar(&flags.ApikeyVar, "apikey", "", "API key or password")
 
-	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location")
-
-	flag.StringVar(&flags.URLVar, "url", "", "Binary Manager URL")
-	flag.StringVar(&flags.RepoVar, "repo", "", "Download Repository")
-
+	flag.StringVar(&flags.RepoVar, "repo", "", "Reindex single repo")
+	flag.StringVar(&flags.ListReposVar, "list", "", "Reindex list of repos, comma separated. No white space between")
 	flag.BoolVar(&flags.ReindexAllVar, "all", false, "Reindex all repos")
 
 	flag.Parse()

@@ -32,7 +32,6 @@ func main() {
 		return
 	}
 
-	var repoMap = make(map[string]int)
 	var supportTypesFile supportedTypes
 
 	if flags.TypesFileVar == "" {
@@ -58,17 +57,42 @@ func main() {
 	if !auth.VerifyAPIKey(creds.URL, creds.Username, creds.Apikey) {
 		log.Fatalf("Please verify your URL and/or credentials. Do not provide context paths in your URL.")
 	}
+	results := helpers.CheckTypeAndRepoParams(creds)
 
 	if flags.ReindexAllVar {
-		log.Info("Indexing all repos")
 		//index all
+		log.Info("Indexing all repos")
+		for i := range results {
+			log.Info("Indexing ", results[i].Name)
+			indexRepo(results[i].Name, results[i].PkgType, supportTypesFile, creds, results[i].Type)
+		}
 
 	} else if flags.ListReposVar != "" {
 		//index specified list
 		log.Info("Indexing specified list of repos:", flags.ListReposVar)
+		list := strings.Split(flags.ListReposVar, ",")
+		for i := range list {
+			log.Debug("Removing -cache as needed")
+			list[i] = strings.TrimSuffix(list[i], "-cache")
+			var found bool
+			for j := range results {
+				if results[j].Name == list[i] {
+					log.Info("Repo is in indexed list:", list[i])
+					indexRepo(results[j].Name, results[j].PkgType, supportTypesFile, creds, results[j].Type)
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Warn(list[i], " was not found in the indexed list, skipping")
+			}
+		}
 	} else if flags.RepoVar != "" {
+		//default, use passed in repo
+		log.Debug("Removing -cache as needed")
+		flags.RepoVar = strings.TrimSuffix(flags.RepoVar, "-cache")
 		log.Info("Indexing single repo:", flags.RepoVar)
-		results := helpers.CheckTypeAndRepoParams(creds)
+
 		var found bool
 		for i := range results {
 			if results[i].Name == flags.RepoVar {
@@ -81,10 +105,7 @@ func main() {
 		if !found {
 			log.Fatalf("Repo not found in indexed list")
 		}
-		//do something here
 
-		repoMap[flags.RepoVar] = 0
-		//default, use passed in repo
 	} else {
 		log.Fatalf("No repos were specified, please use one of -all, -list or -repo")
 	}
@@ -130,10 +151,11 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 				}
 				body := "{\"artifacts\": [{\"repository\":\"" + repo + "\",\"path\":\"" + fileListStruct.Files[i].Uri + "\"}]}"
 
-				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReindex", creds.Username, creds.Apikey, body, m, 0)
-				log.Info("Xray response:", string(resp))
+				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReinde", creds.Username, creds.Apikey, body, m, 0)
 				if respCode != 200 {
-					log.Warn("Xray response:", string(resp), respCode)
+					log.Warn("Unexpected Xray response:HTTP", respCode, " ", string(resp))
+				} else {
+					log.Info("Xray response:", string(resp))
 				}
 				break
 			}
