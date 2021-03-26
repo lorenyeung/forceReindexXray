@@ -26,7 +26,7 @@ echo "Enter body description"
 read message
 body="{
   \"tag_name\": \"$LOCAL_TAG_NAME\",
-  \"target_commitish\": \"master\",
+  \"target_commitish\": \"main\",
   \"name\": \"$LOCAL_NAME\",
   \"body\": \"$message\",
   \"draft\": false,
@@ -61,7 +61,7 @@ echo "Looks good?"
                     curl -T $BINARY "$URL" -H "Content-type: application/x-binary" -u $GIT_USER:$GIT_TOKEN
                 done
                 rm release-response.json
-                rm pkgdl-*
+                rm reindex-*
                 break;;
             No) echo "OK" ; break;;
         esac

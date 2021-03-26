@@ -31,6 +31,12 @@ Happy downloading! :)
     - Example:
         - ./reindex -apikey mypassword
 
+* folder 
+    - Description:
+        - Optional folder depth in case you don't want to index a whole repository
+    - Example:
+        - ./reindex -folder /com/google
+
 * list
     - Description:
     	- Provide a list of repositories to re-index. Do not provide -cache for remotes. Comma separated list with no spaces. Must provide this or -all or -repo.
