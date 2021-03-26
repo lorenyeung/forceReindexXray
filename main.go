@@ -46,6 +46,10 @@ func main() {
 		scanner, _ := ioutil.ReadAll(credsFile)
 		json.Unmarshal(scanner, &supportTypesFile)
 	}
+	if flags.FolderVar != "" && !strings.HasPrefix(flags.FolderVar, "/") {
+		log.Info("Missing prefix forward slash on folder path, adding in.")
+		flags.FolderVar = "/" + flags.FolderVar
+	}
 
 	if flags.ApikeyVar == "" || flags.UsernameVar == "" || flags.URLVar == "" {
 		log.Fatalf("Please specify -user, -apikey AND -url flags")
@@ -64,7 +68,7 @@ func main() {
 		log.Info("Indexing all repos")
 		for i := range results {
 			log.Info("Indexing ", results[i].Name)
-			indexRepo(results[i].Name, results[i].PkgType, supportTypesFile, creds, results[i].Type)
+			indexRepo(results[i].Name, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags.FolderVar)
 		}
 
 	} else if flags.ListReposVar != "" {
@@ -78,7 +82,7 @@ func main() {
 			for j := range results {
 				if results[j].Name == list[i] {
 					log.Info("Repo is in indexed list:", list[i])
-					indexRepo(results[j].Name, results[j].PkgType, supportTypesFile, creds, results[j].Type)
+					indexRepo(results[j].Name, results[j].PkgType, supportTypesFile, creds, results[j].Type, flags.FolderVar)
 					found = true
 					break
 				}
@@ -98,7 +102,7 @@ func main() {
 			if results[i].Name == flags.RepoVar {
 				log.Info("Repo is in indexed list")
 				found = true
-				indexRepo(flags.RepoVar, results[i].PkgType, supportTypesFile, creds, results[i].Type)
+				indexRepo(flags.RepoVar, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags.FolderVar)
 				break
 			}
 		}
@@ -112,7 +116,7 @@ func main() {
 
 }
 
-func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Creds, repoType string) {
+func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Creds, repoType string, FolderVar string) {
 	var extensions []Extensions
 	pkgType = strings.ToLower(pkgType)
 	log.Debug("type:", repoType, " pkgType:", pkgType, " repo:", repo)
@@ -129,10 +133,14 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 		log.Debug("Extension added to list:", extensions[y].Extension)
 	}
 	var fileListData []byte
+	var respCode int
 	if repoType == "local" {
-		fileListData, _, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
+		fileListData, respCode, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+FolderVar+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
 	} else if repoType == "remote" {
-		fileListData, _, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+"-cache?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
+		fileListData, respCode, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+"-cache"+FolderVar+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
+	}
+	if respCode != 200 {
+		log.Warn("File list received unexpected response code:", respCode, " :", string(fileListData))
 	}
 
 	log.Debug("File list received:", string(fileListData))
@@ -142,6 +150,7 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 
 	for i := range fileListStruct.Files {
 		for j := range extensions {
+			fileListStruct.Files[i].Uri = FolderVar + fileListStruct.Files[i].Uri
 			log.Debug("File found:", fileListStruct.Files[i].Uri, " matching against:", extensions[j].Extension)
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
 				log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
@@ -151,7 +160,7 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 				}
 				body := "{\"artifacts\": [{\"repository\":\"" + repo + "\",\"path\":\"" + fileListStruct.Files[i].Uri + "\"}]}"
 
-				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReinde", creds.Username, creds.Apikey, body, m, 0)
+				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReindex", creds.Username, creds.Apikey, body, m, 0)
 				if respCode != 200 {
 					log.Warn("Unexpected Xray response:HTTP", respCode, " ", string(resp))
 				} else {

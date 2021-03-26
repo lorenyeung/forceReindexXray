@@ -70,8 +70,8 @@ func Trace() TraceData {
 
 //Flags struct
 type Flags struct {
-	UsernameVar, ApikeyVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, ListReposVar string
-	ReindexAllVar                                                                    bool
+	UsernameVar, ApikeyVar, FolderVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, ListReposVar string
+	ReindexAllVar                                                                               bool
 }
 
 //SetFlags function
@@ -79,7 +79,7 @@ func SetFlags() Flags {
 	var flags Flags
 	flag.StringVar(&flags.LogLevelVar, "log", "INFO", "Order of Severity: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC")
 	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location, get this from Artifactory")
-
+	flag.StringVar(&flags.FolderVar, "folder", "", "Only reindex within a certain folder depth")
 	flag.StringVar(&flags.URLVar, "url", "", "Platform URL. No /context")
 	flag.StringVar(&flags.UsernameVar, "user", "", "Username")
 	flag.StringVar(&flags.ApikeyVar, "apikey", "", "API key or password")
