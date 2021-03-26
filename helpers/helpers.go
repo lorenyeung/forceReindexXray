@@ -2,8 +2,10 @@ package helpers
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"forceReindexXray/auth"
 	"io"
 	"os"
 	"runtime"
@@ -139,6 +141,8 @@ func SetFlags() Flags {
 	flag.StringVar(&flags.UsernameVar, "user", "", "Username")
 	flag.StringVar(&flags.ApikeyVar, "apikey", "", "API key or password")
 
+	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location")
+
 	flag.StringVar(&flags.URLVar, "url", "", "Binary Manager URL")
 	flag.StringVar(&flags.RepoVar, "repo", "", "Download Repository")
 
@@ -146,4 +150,21 @@ func SetFlags() Flags {
 
 	flag.Parse()
 	return flags
+}
+
+type IndexedRepo struct {
+	Name    string `json:"name"`
+	PkgType string `json:"pkgType"`
+	Type    string `json:"type"`
+}
+
+//Test if remote repository exists and is a remote
+func CheckTypeAndRepoParams(creds auth.Creds) []IndexedRepo {
+	repoCheckData, repoStatusCode, _ := auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/xrayRepo/getIndex", creds.Username, creds.Apikey, "", nil, 1)
+	if repoStatusCode != 200 {
+		log.Fatalf("Repo list does not exist.")
+	}
+	var result []IndexedRepo
+	json.Unmarshal(repoCheckData, &result)
+	return result
 }
