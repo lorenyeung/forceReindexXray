@@ -194,6 +194,9 @@ func GetRestAPI(method string, auth bool, urlInput, userName, apiKey, providedfi
 	}
 
 	body := new(bytes.Buffer)
+	if method == "POST" && providedfilepath != "" {
+		body = bytes.NewBuffer([]byte(providedfilepath))
+	}
 	//PUT upload file
 	if method == "PUT" && providedfilepath != "" {
 		//req.Header.Set()

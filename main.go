@@ -125,12 +125,20 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
 				log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
 				//send to indexing
+				m := map[string]string{
+					"Content-Type": "application/json",
+				}
+				body := "{\"artifacts\": [{\"repository\":\"" + repo + "\",\"path\":\"" + fileListStruct.Files[i].Uri + "\"}]}"
+
+				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReindex", creds.Username, creds.Apikey, body, m, 0)
+				log.Info("Xray response:", string(resp))
+				if respCode != 200 {
+					log.Warn("Xray response:", string(resp), respCode)
+				}
 				break
 			}
 		}
-
 	}
-
 }
 
 type supportedTypes struct {
