@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"forceReindexXray/auth"
 	"forceReindexXray/helpers"
+	"forceReindexXray/internal"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -32,7 +33,7 @@ func main() {
 		return
 	}
 
-	var supportTypesFile supportedTypes
+	var supportTypesFile helpers.SupportedTypes
 
 	if flags.TypesFileVar == "" {
 		log.Fatalf("Please provide types file")
@@ -68,7 +69,7 @@ func main() {
 		log.Info("Indexing all repos")
 		for i := range results {
 			log.Info("Indexing ", results[i].Name)
-			indexRepo(results[i].Name, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags.FolderVar)
+			indexRepo(results[i].Name, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags)
 		}
 
 	} else if flags.ListReposVar != "" {
@@ -82,7 +83,7 @@ func main() {
 			for j := range results {
 				if results[j].Name == list[i] {
 					log.Info("Repo is in indexed list:", list[i])
-					indexRepo(results[j].Name, results[j].PkgType, supportTypesFile, creds, results[j].Type, flags.FolderVar)
+					indexRepo(results[j].Name, results[j].PkgType, supportTypesFile, creds, results[j].Type, flags)
 					found = true
 					break
 				}
@@ -102,27 +103,39 @@ func main() {
 			if results[i].Name == flags.RepoVar {
 				log.Info("Repo is in indexed list")
 				found = true
-				indexRepo(flags.RepoVar, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags.FolderVar)
+				indexRepo(flags.RepoVar, results[i].PkgType, supportTypesFile, creds, results[i].Type, flags)
 				break
 			}
 		}
 		if !found {
-			log.Fatalf("Repo not found in indexed list")
+			log.Error("Repo not found in indexed list. ", len(results), " available repos:")
+			for i := range results {
+				if i < len(results)-1 {
+					fmt.Print(results[i].Name, ",")
+				} else if i == len(results)-1 {
+					fmt.Println(results[i].Name)
+				}
+			}
 		}
-
 	} else {
-		log.Fatalf("No repos were specified, please use one of -all, -list or -repo")
+		log.Error("No repos were specified, please use one of -all, -list or -repo. ", len(results), " available repos:")
+		for i := range results {
+			if i < len(results)-1 {
+				fmt.Print(results[i].Name, ",")
+			} else if i == len(results)-1 {
+				fmt.Println(results[i].Name)
+			}
+		}
 	}
-
 }
 
-func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Creds, repoType string, FolderVar string) {
-	var extensions []Extensions
+func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds auth.Creds, repoType string, flags helpers.Flags) {
+	var extensions []helpers.Extensions
 	pkgType = strings.ToLower(pkgType)
 	log.Debug("type:", repoType, " pkgType:", pkgType, " repo:", repo)
 	for i := range types.SupportedPackageTypes {
 		if types.SupportedPackageTypes[i].Type == pkgType {
-			log.Info("found package type:", types.SupportedPackageTypes[i].Type)
+			log.Debug("found package type:", types.SupportedPackageTypes[i].Type)
 			extensions = types.SupportedPackageTypes[i].Extension
 		}
 	}
@@ -134,62 +147,46 @@ func indexRepo(repo string, pkgType string, types supportedTypes, creds auth.Cre
 	}
 	var fileListData []byte
 	var respCode int
-	if repoType == "local" {
-		fileListData, respCode, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+FolderVar+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
-	} else if repoType == "remote" {
-		fileListData, respCode, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+"-cache"+FolderVar+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
+	if repoType == "remote" {
+		repo = repo + "-cache"
 	}
+	fileListData, respCode, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+flags.FolderVar+"?list&deep=1", creds.Username, creds.Apikey, "", nil, 0)
 	if respCode != 200 {
-		log.Warn("File list received unexpected response code:", respCode, " :", string(fileListData))
+		log.Fatalf("File list received unexpected response code:", respCode, " :", string(fileListData))
 	}
-
 	log.Debug("File list received:", string(fileListData))
 
-	var fileListStruct fileList
+	var fileListStruct helpers.FileList
 	json.Unmarshal(fileListData, &fileListStruct)
-
+	var notIndexCount, totalCount int
 	for i := range fileListStruct.Files {
 		for j := range extensions {
-			fileListStruct.Files[i].Uri = FolderVar + fileListStruct.Files[i].Uri
+			fileListStruct.Files[i].Uri = flags.FolderVar + fileListStruct.Files[i].Uri
 			log.Debug("File found:", fileListStruct.Files[i].Uri, " matching against:", extensions[j].Extension)
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
-				log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
-				//send to indexing
-				m := map[string]string{
-					"Content-Type": "application/json",
-				}
-				body := "{\"artifacts\": [{\"repository\":\"" + repo + "\",\"path\":\"" + fileListStruct.Files[i].Uri + "\"}]}"
 
-				resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReindex", creds.Username, creds.Apikey, body, m, 0)
-				if respCode != 200 {
-					log.Warn("Unexpected Xray response:HTTP", respCode, " ", string(resp))
+				if flags.IndexedVar != "" {
+					notIndexCount, totalCount = internal.Details(repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount)
 				} else {
-					log.Info("Xray response:", string(resp))
+					log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
+					//send to indexing
+					m := map[string]string{
+						"Content-Type": "application/json",
+					}
+					body := "{\"artifacts\": [{\"repository\":\"" + repo + "\",\"path\":\"" + fileListStruct.Files[i].Uri + "\"}]}"
+
+					resp, respCode, _ := auth.GetRestAPI("POST", true, creds.URL+"/xray/api/v1/forceReindex", creds.Username, creds.Apikey, body, m, 0)
+					if respCode != 200 {
+						notIndexCount++
+						log.Warn("Unexpected Xray response:HTTP", respCode, " ", string(resp))
+					} else {
+						log.Info("Xray response:", string(resp))
+					}
+					totalCount++
 				}
 				break
 			}
 		}
 	}
-}
-
-type supportedTypes struct {
-	SupportedPackageTypes []SupportedPackageType `json:"supportedPackageTypes"`
-}
-
-type SupportedPackageType struct {
-	Type      string       `json:"type"`
-	Extension []Extensions `json:"extensions"`
-}
-
-type Extensions struct {
-	Extension string `json:"extension"`
-	IsFile    bool   `json:"is_file"`
-}
-
-type fileList struct {
-	Files []files `json:"files"`
-}
-
-type files struct {
-	Uri string `json:"uri"`
+	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount)
 }

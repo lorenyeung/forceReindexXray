@@ -18,6 +18,28 @@ type TraceData struct {
 	Fn   string
 }
 
+type SupportedTypes struct {
+	SupportedPackageTypes []SupportedPackageType `json:"supportedPackageTypes"`
+}
+
+type SupportedPackageType struct {
+	Type      string       `json:"type"`
+	Extension []Extensions `json:"extensions"`
+}
+
+type Extensions struct {
+	Extension string `json:"extension"`
+	IsFile    bool   `json:"is_file"`
+}
+
+type FileList struct {
+	Files []Files `json:"files"`
+}
+
+type Files struct {
+	Uri string `json:"uri"`
+}
+
 //SetLogger sets logger settings
 func SetLogger(logLevelVar string) {
 	level, err := log.ParseLevel(logLevelVar)
@@ -70,13 +92,14 @@ func Trace() TraceData {
 
 //Flags struct
 type Flags struct {
-	UsernameVar, ApikeyVar, FolderVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, ListReposVar string
-	ReindexAllVar                                                                               bool
+	UsernameVar, ApikeyVar, FolderVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, IndexedVar, ListReposVar string
+	ReindexAllVar                                                                                           bool
 }
 
 //SetFlags function
 func SetFlags() Flags {
 	var flags Flags
+	flag.StringVar(&flags.IndexedVar, "indexed", "", "Indexed analysis")
 	flag.StringVar(&flags.LogLevelVar, "log", "INFO", "Order of Severity: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC")
 	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location, get this from Artifactory")
 	flag.StringVar(&flags.FolderVar, "folder", "", "Only reindex within a certain folder depth")
