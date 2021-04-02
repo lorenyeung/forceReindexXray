@@ -5,7 +5,7 @@ Re-index Xray Repositories due to bad/incomplete indexing. Tested for 3.x only. 
 
 ## Installation
 ### Standalone Binary
-See the new releases section :) 
+See the releases section on the left.
 Those can be run with `./reindex-<DISTRO>-<ARCH>`
 
 ### Source code method
@@ -15,7 +15,7 @@ then install under `$GO_HOME/src` (do not create another folder)
 then run
 `$ go run $GO_HOME/src/forceReindexXray/main.go`
 
-Happy downloading! :)
+Happy re-indexing! :)
 
 ## Usage
 ### Commands
@@ -27,7 +27,7 @@ Happy downloading! :)
 
 * apikey (required)
     - Description:
-    	- API key or password
+    	- API key or password. If not provided, will be prompted for.
     - Example:
         - ./reindex -apikey mypassword
 
@@ -36,6 +36,12 @@ Happy downloading! :)
         - Optional folder depth in case you don't want to index a whole repository
     - Example:
         - ./reindex -folder /com/google
+
+* indexed
+    - Description:
+        - Curates a list of artifacts and prints the indexed status. Does not trigger re-indexing. Please provide one of the following: unindexed all
+    - Example:
+        - ./reindex -indexed unindexed
 
 * list
     - Description:

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var gitCommit string
@@ -51,14 +52,24 @@ func main() {
 		log.Info("Missing prefix forward slash on folder path, adding in.")
 		flags.FolderVar = "/" + flags.FolderVar
 	}
-
-	if flags.ApikeyVar == "" || flags.UsernameVar == "" || flags.URLVar == "" {
-		log.Fatalf("Please specify -user, -apikey AND -url flags")
-	}
 	var creds auth.Creds
-	creds.Apikey = flags.ApikeyVar
+	if flags.ApikeyVar == "" {
+		fmt.Println("Enter password or API key: ")
+		password, err := terminal.ReadPassword(0)
+		if err == nil {
+			creds.Apikey = string(password)
+		}
+	} else {
+		creds.Apikey = flags.ApikeyVar
+	}
+
+	if flags.UsernameVar == "" || flags.URLVar == "" {
+		log.Fatalf("Please specify -user, AND -url flags")
+	}
+
 	creds.Username = flags.UsernameVar
 	creds.URL = flags.URLVar
+
 	if !auth.VerifyAPIKey(creds.URL, creds.Username, creds.Apikey) {
 		log.Fatalf("Please verify your URL and/or credentials. Do not provide context paths in your URL.")
 	}
