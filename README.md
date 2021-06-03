@@ -55,6 +55,12 @@ Happy re-indexing! :)
     - Example: 
         - ./reindex -log debug
 
+* logUnindexable
+    - Description:
+        - Flag on whether to print files that are considered unindexable such as metadata (pom.xml etc).
+    - Example:
+        -./reindex -logUnindexable true
+
 * repo
     - Description:
     	- Re-index a single Repository. Must provide this or -list or -all.
