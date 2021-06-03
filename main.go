@@ -168,12 +168,14 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 	}
 	log.Debug("File list received:", string(fileListData))
 
+	var UnindexableMap = make(map[string]int)
 	var fileListStruct helpers.FileList
 	json.Unmarshal(fileListData, &fileListStruct)
-	var notIndexCount, totalCount int
+	var notIndexCount, totalCount, notIndexableCount, noExtCount int
 	for i := range fileListStruct.Files {
 		for j := range extensions {
 			fileListStruct.Files[i].Uri = flags.FolderVar + fileListStruct.Files[i].Uri
+
 			log.Debug("File found:", fileListStruct.Files[i].Uri, " matching against:", extensions[j].Extension)
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
 
@@ -197,8 +199,26 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 					totalCount++
 				}
 				break
+			} else if j+1 == len(extensions) {
+				//failed the last match
+				if flags.LogUnindexableVar {
+					log.Info("not indexable:", fileListStruct.Files[i].Uri)
+				}
+				filePath := strings.Split(fileListStruct.Files[i].Uri, "/")
+				fileName := filePath[len(filePath)-1]
+				fileExt := strings.Split(fileName, ".")
+				notIndexableCount++
+				log.Debug("name, name array, uri:", fileName, fileExt, " ", fileListStruct.Files[i].Uri)
+				if len(fileExt)-1 > 0 {
+					//dont add files without file ext
+					UnindexableMap["."+fileExt[len(fileExt)-1]]++
+				} else {
+					noExtCount++
+				}
+
 			}
 		}
 	}
-	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount)
+	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
+	log.Info("Unindexable file types count:", UnindexableMap)
 }

@@ -91,7 +91,7 @@ func Trace() TraceData {
 //Flags struct
 type Flags struct {
 	UsernameVar, ApikeyVar, FolderVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, IndexedVar, ListReposVar string
-	ReindexAllVar                                                                                           bool
+	ReindexAllVar, LogUnindexableVar                                                                        bool
 }
 
 //SetFlags function
@@ -108,6 +108,7 @@ func SetFlags() Flags {
 	flag.StringVar(&flags.RepoVar, "repo", "", "Reindex single repo")
 	flag.StringVar(&flags.ListReposVar, "list", "", "Reindex list of repos, comma separated. No white space between")
 	flag.BoolVar(&flags.ReindexAllVar, "all", false, "Reindex all repos")
+	flag.BoolVar(&flags.LogUnindexableVar, "logUnindexable", false, "Log unindexable file types in output")
 
 	flag.Parse()
 	return flags
