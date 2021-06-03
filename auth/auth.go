@@ -2,7 +2,7 @@ package auth
 
 import (
 	"bytes"
-	"go-pkgdl/helpers"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/lorenyeung/forceReindexXray/helpers"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,6 +22,12 @@ type Creds struct {
 	Username   string
 	Apikey     string
 	DlLocation string
+}
+
+type IndexedRepo struct {
+	Name    string `json:"name"`
+	PkgType string `json:"pkgType"`
+	Type    string `json:"type"`
 }
 
 // VerifyAPIKey for errors
@@ -142,4 +150,15 @@ func GetRestAPI(method string, auth bool, urlInput, userName, apiKey, providedfi
 		}
 	}
 	return nil, 0, nil
+}
+
+//Test if remote repository exists and is a remote
+func CheckTypeAndRepoParams(creds Creds) []IndexedRepo {
+	repoCheckData, repoStatusCode, _ := GetRestAPI("GET", true, creds.URL+"/artifactory/api/xrayRepo/getIndex", creds.Username, creds.Apikey, "", nil, 1)
+	if repoStatusCode != 200 {
+		log.Fatalf("Repo list does not exist.")
+	}
+	var result []IndexedRepo
+	json.Unmarshal(repoCheckData, &result)
+	return result
 }

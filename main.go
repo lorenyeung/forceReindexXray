@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"forceReindexXray/auth"
-	"forceReindexXray/helpers"
-	"forceReindexXray/internal"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/lorenyeung/forceReindexXray/auth"
+	"github.com/lorenyeung/forceReindexXray/helpers"
+	"github.com/lorenyeung/forceReindexXray/internal"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
@@ -73,7 +74,7 @@ func main() {
 	if !auth.VerifyAPIKey(creds.URL, creds.Username, creds.Apikey) {
 		log.Fatalf("Please verify your URL and/or credentials. Do not provide context paths in your URL.")
 	}
-	results := helpers.CheckTypeAndRepoParams(creds)
+	results := auth.CheckTypeAndRepoParams(creds)
 
 	if flags.ReindexAllVar {
 		//index all
