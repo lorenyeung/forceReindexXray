@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -172,6 +173,7 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 	var fileListStruct helpers.FileList
 	json.Unmarshal(fileListData, &fileListStruct)
 	var notIndexCount, totalCount, notIndexableCount, noExtCount int
+	indexAnalysis := list.New()
 	for i := range fileListStruct.Files {
 		for j := range extensions {
 			fileListStruct.Files[i].Uri = flags.FolderVar + fileListStruct.Files[i].Uri
@@ -180,7 +182,18 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
 
 				if flags.IndexedVar != "" {
-					notIndexCount, totalCount = Details(repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount)
+					var queueDetails queueDetails
+					queueDetails.Repo = repo
+					queueDetails.PkgType = pkgType
+					queueDetails.Types = types
+					queueDetails.Creds = creds
+					queueDetails.RepoType = repoType
+					queueDetails.Flags = flags
+					queueDetails.FileListData = fileListStruct.Files[i]
+					queueDetails.NotIndexCount = notIndexCount
+					queueDetails.TotalCount = totalCount
+					indexAnalysis.PushBack(queueDetails)
+					//notIndexCount, totalCount = Details(repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount)
 				} else {
 					log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
 					//send to indexing
@@ -219,31 +232,76 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 			}
 		}
 	}
-	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
+
+	numJobs := indexAnalysis.Len()
+	jobs := make(chan int, numJobs)
+	results := make(chan int, numJobs)
+
+	for w := 1; w <= 5; w++ {
+		go worker(w, jobs, results, indexAnalysis)
+	}
+	for j := 1; j <= numJobs; j++ {
+		jobs <- j
+	}
+	close(jobs)
+	var x int
+	for a := 1; a <= numJobs; a++ {
+		x = <-results
+	}
+
+	//WIP
+	log.Debug("results:", x)
+
+	log.Info("Total indexed count:", totalCount-notIndexCount, "/", results, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
 	log.Info("Unindexable file types count:", UnindexableMap)
 }
 
-func Details(repo string, pkgType string, types helpers.SupportedTypes, creds auth.Creds, repoType string, flags helpers.Flags, fileListData helpers.Files, notIndexCount int, totalCount int) (int, int) {
+func worker(id int, jobs <-chan int, results chan<- int, queue *list.List) {
+	for queue.Len() > 0 {
+		e := queue.Front().Value
+		log.Debug("worker ", id, " working on ", e)
+		notIndexCount, totalCount := Details(e.(queueDetails))
+		log.Debug("not index:", notIndexCount, " total:", totalCount)
+		results <- totalCount
+		queue.Remove(queue.Front())
+	}
+}
+
+//repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount
+type queueDetails struct {
+	Repo          string
+	PkgType       string
+	Types         helpers.SupportedTypes
+	Creds         auth.Creds
+	RepoType      string
+	Flags         helpers.Flags
+	FileListData  helpers.Files
+	NotIndexCount int
+	TotalCount    int
+}
+
+func Details(q queueDetails) (int, int) {
 	//send to details
 	var printAll bool
-	switch flags.IndexedVar {
+	switch q.Flags.IndexedVar {
 	case "unindexed":
 	case "all":
 		printAll = true
 	default:
 		log.Fatalf("Please provide one of the following: unindexed all")
 	}
-	status, proc := internal.GetDetails(repo, pkgType, fileListData.Uri, creds)
+	status, proc := internal.GetDetails(q.Repo, q.PkgType, q.FileListData.Uri, q.Creds)
 	if !proc {
-		notIndexCount++
-		printStatus(status, repo, pkgType, fileListData.Uri, creds)
+		q.NotIndexCount++
+		printStatus(status, q.Repo, q.PkgType, q.FileListData.Uri, q.Creds)
 	} else {
-		totalCount++
+		q.TotalCount++
 		if printAll {
-			printStatus(status, repo, pkgType, fileListData.Uri, creds)
+			printStatus(status, q.Repo, q.PkgType, q.FileListData.Uri, q.Creds)
 		}
 	}
-	return notIndexCount, totalCount
+	//log.Info("not index:", q.NotIndexCount, " total:", q.TotalCount)
+	return q.NotIndexCount, q.TotalCount
 }
 
 func printStatus(status string, repo string, pkgType string, uri string, creds auth.Creds) {
@@ -262,7 +320,7 @@ func printStatus(status string, repo string, pkgType string, uri string, creds a
 			json.Unmarshal(fileDetailsDocker, &fileInfoDocker)
 			size64 = size64 + helpers.StringToInt64(fileInfoDocker.Size)
 		}
-		//hardcode for now
+		//hardcode mimetype for now
 		fileInfo.MimeType = "application/json"
 		size = helpers.ByteCountDecimal(size64)
 	} else {
@@ -272,5 +330,5 @@ func printStatus(status string, repo string, pkgType string, uri string, creds a
 	}
 	status = fmt.Sprintf("%-19v", status)
 	//not really helpful for docker
-	log.Info(status, "\t", size, "\t", fmt.Sprintf("%-16v", strings.TrimPrefix(fileInfo.MimeType, "application/")), "\t", repo+uri)
+	log.Info(status, "\t", size, "\t", fmt.Sprintf("%-16v", strings.TrimPrefix(fileInfo.MimeType, "application/")), " ", repo+uri)
 }
