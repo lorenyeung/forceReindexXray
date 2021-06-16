@@ -180,7 +180,7 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 			if strings.Contains(fileListStruct.Files[i].Uri, extensions[j].Extension) {
 
 				if flags.IndexedVar != "" {
-					notIndexCount, totalCount = internal.Details(repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount)
+					notIndexCount, totalCount = Details(repo, pkgType, types, creds, repoType, flags, fileListStruct.Files[i], notIndexCount, totalCount)
 				} else {
 					log.Info("File being sent to indexing:", fileListStruct.Files[i].Uri)
 					//send to indexing
@@ -221,4 +221,56 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 	}
 	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
 	log.Info("Unindexable file types count:", UnindexableMap)
+}
+
+func Details(repo string, pkgType string, types helpers.SupportedTypes, creds auth.Creds, repoType string, flags helpers.Flags, fileListData helpers.Files, notIndexCount int, totalCount int) (int, int) {
+	//send to details
+	var printAll bool
+	switch flags.IndexedVar {
+	case "unindexed":
+	case "all":
+		printAll = true
+	default:
+		log.Fatalf("Please provide one of the following: unindexed all")
+	}
+	status, proc := internal.GetDetails(repo, pkgType, fileListData.Uri, creds)
+	if !proc {
+		notIndexCount++
+		printStatus(status, repo, pkgType, fileListData.Uri, creds)
+	} else {
+		totalCount++
+		if printAll {
+			printStatus(status, repo, pkgType, fileListData.Uri, creds)
+		}
+	}
+	return notIndexCount, totalCount
+}
+
+func printStatus(status string, repo string, pkgType string, uri string, creds auth.Creds) {
+	var fileDetails []byte
+	var fileInfo helpers.FileInfo
+	var size string
+	if pkgType == "docker" {
+		uri = strings.TrimSuffix(uri, "/manifest.json")
+		folderDetails, _, _ := auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+uri, creds.Username, creds.Apikey, "", nil, 0)
+		json.Unmarshal(folderDetails, &fileInfo)
+		var size64 int64
+		for i := range fileInfo.Children {
+			path := fileInfo.Children[i].Uri
+			var fileInfoDocker helpers.FileInfo
+			fileDetailsDocker, _, _ := auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+uri+path, creds.Username, creds.Apikey, "", nil, 0)
+			json.Unmarshal(fileDetailsDocker, &fileInfoDocker)
+			size64 = size64 + helpers.StringToInt64(fileInfoDocker.Size)
+		}
+		//hardcode for now
+		fileInfo.MimeType = "application/json"
+		size = helpers.ByteCountDecimal(size64)
+	} else {
+		fileDetails, _, _ = auth.GetRestAPI("GET", true, creds.URL+"/artifactory/api/storage/"+repo+uri, creds.Username, creds.Apikey, "", nil, 0)
+		json.Unmarshal(fileDetails, &fileInfo)
+		size = helpers.ByteCountDecimal(helpers.StringToInt64(fileInfo.Size))
+	}
+	status = fmt.Sprintf("%-19v", status)
+	//not really helpful for docker
+	log.Info(status, "\t", size, "\t", fmt.Sprintf("%-16v", strings.TrimPrefix(fileInfo.MimeType, "application/")), "\t", repo+uri)
 }

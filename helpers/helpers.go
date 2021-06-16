@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -38,6 +39,16 @@ type Files struct {
 	Uri string `json:"uri"`
 }
 
+type FileInfo struct {
+	Size     string          `json:"size"`
+	MimeType string          `json:"mimeType"`
+	Children []FileInfoChild `json:"children"`
+}
+
+type FileInfoChild struct {
+	Uri string `json:"uri"`
+}
+
 //SetLogger sets logger settings
 func SetLogger(logLevelVar string) {
 	level, err := log.ParseLevel(logLevelVar)
@@ -61,6 +72,20 @@ func SetLogger(logLevelVar string) {
 	fmt.Println("Log level set at ", level)
 }
 
+//ByteCountDecimal convert bytes to human readable data size
+func ByteCountDecimal(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
 //Check logger for errors
 func Check(e error, panicCheck bool, logs string, trace TraceData) {
 	if e != nil && panicCheck {
@@ -70,6 +95,16 @@ func Check(e error, panicCheck bool, logs string, trace TraceData) {
 	if e != nil && !panicCheck {
 		log.Warn(logs, " failed with error:", e, " ", trace.Fn, " on line:", trace.Line)
 	}
+}
+
+//StringToInt64 self explanatory
+func StringToInt64(data string) int64 {
+	convert, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		log.Warn(data, " is not of type integer")
+		return 0
+	}
+	return convert
 }
 
 //Trace get function data
