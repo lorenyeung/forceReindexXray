@@ -67,7 +67,13 @@ Happy re-indexing! :)
     - Example:
         - ./reindex -repo npm-local
 
-* typesfile (required)
+* reportWorkers
+    - Description:
+        - Configurable workers for faster report generation. Use in conjunction with -indexed.
+    - Example:
+        - ./reindex -reportWorkers 10
+
+* typesFile (required)
     - Description:
     	- supported_types.json file location, get this from Artifactory
     - Example:

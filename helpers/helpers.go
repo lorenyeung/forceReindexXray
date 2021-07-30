@@ -127,14 +127,16 @@ func Trace() TraceData {
 type Flags struct {
 	UsernameVar, ApikeyVar, FolderVar, URLVar, RepoVar, LogLevelVar, TypesFileVar, IndexedVar, ListReposVar string
 	ReindexAllVar, LogUnindexableVar                                                                        bool
+	ReportWorkersVar                                                                                        int
 }
 
 //SetFlags function
 func SetFlags() Flags {
 	var flags Flags
+	flag.IntVar(&flags.ReportWorkersVar, "reportWorkers", 5, "Number of indexed report workers")
 	flag.StringVar(&flags.IndexedVar, "indexed", "", "Indexed analysis")
 	flag.StringVar(&flags.LogLevelVar, "log", "INFO", "Order of Severity: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC")
-	flag.StringVar(&flags.TypesFileVar, "typesfile", "", "supported_types.json file location, get this from Artifactory")
+	flag.StringVar(&flags.TypesFileVar, "typesFile", "", "supported_types.json file location, get this from Artifactory")
 	flag.StringVar(&flags.FolderVar, "folder", "", "Only reindex within a certain folder depth")
 	flag.StringVar(&flags.URLVar, "url", "", "Platform URL. No /context")
 	flag.StringVar(&flags.UsernameVar, "user", "", "Username")

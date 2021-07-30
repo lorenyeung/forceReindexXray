@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/lorenyeung/forceReindexXray/auth"
 	"github.com/lorenyeung/forceReindexXray/helpers"
@@ -25,7 +26,7 @@ func printVersion() {
 }
 
 func main() {
-
+	timeStart := time.Now()
 	versionFlag := flag.Bool("v", false, "Print the current version and exit")
 	flags := helpers.SetFlags()
 	helpers.SetLogger(flags.LogLevelVar)
@@ -39,7 +40,7 @@ func main() {
 	var supportTypesFile helpers.SupportedTypes
 
 	if flags.TypesFileVar == "" {
-		log.Fatalf("Please provide types file")
+		log.Fatalf("Please provide types file with -typesFile")
 	}
 	if flags.TypesFileVar != "" {
 		credsFile, err := os.Open(flags.TypesFileVar)
@@ -140,6 +141,9 @@ func main() {
 			}
 		}
 	}
+	endTime := time.Now()
+	totalTime := endTime.Sub(timeStart)
+	log.Info("Execution took:", totalTime)
 }
 
 func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds auth.Creds, repoType string, flags helpers.Flags) {
@@ -237,7 +241,8 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 	jobs := make(chan int, numJobs)
 	results := make(chan int, numJobs)
 
-	for w := 1; w <= 5; w++ {
+	//worker pool
+	for w := 1; w <= flags.ReportWorkersVar; w++ {
 		go worker(w, jobs, results, indexAnalysis)
 	}
 	for j := 1; j <= numJobs; j++ {
@@ -247,23 +252,24 @@ func indexRepo(repo string, pkgType string, types helpers.SupportedTypes, creds 
 	var x int
 	for a := 1; a <= numJobs; a++ {
 		x = <-results
+		if x == 0 {
+			notIndexCount++
+		}
+		totalCount++
 	}
 
-	//WIP
-	log.Debug("results:", x)
-
-	log.Info("Total indexed count:", totalCount-notIndexCount, "/", results, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
+	log.Info("Total indexed count:", totalCount-notIndexCount, "/", totalCount, " Total not indexable:", notIndexableCount, " Files with no extension:", noExtCount)
 	log.Info("Unindexable file types count:", UnindexableMap)
 }
 
 func worker(id int, jobs <-chan int, results chan<- int, queue *list.List) {
 	for queue.Len() > 0 {
 		e := queue.Front().Value
+		queue.Remove(queue.Front())
 		log.Debug("worker ", id, " working on ", e)
 		notIndexCount, totalCount := Details(e.(queueDetails))
 		log.Debug("not index:", notIndexCount, " total:", totalCount)
 		results <- totalCount
-		queue.Remove(queue.Front())
 	}
 }
 
